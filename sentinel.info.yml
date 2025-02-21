@@ -1,0 +1,5 @@
+name: 'Sentinel'
+type: module
+description: 'Provides enhanced tools collection for Drupal.'
+package: Tools
+core_version_requirement: ^10 || ^11

@@ -1,0 +1,10 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - sentinel_key
+id: sentinel_key_save_action
+label: 'Save sentinel keys'
+type: sentinel_key
+plugin: entity:save_action:sentinel_key
+configuration: {  }

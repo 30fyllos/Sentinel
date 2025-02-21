@@ -1,0 +1,11 @@
+administer sentinel_key:
+  title: 'Administer sentinel keys'
+  restrict access: true
+view sentinel_key:
+  title: 'View sentinel key'
+edit sentinel_key:
+  title: 'Edit sentinel key'
+delete sentinel_key:
+  title: 'Delete sentinel key'
+create sentinel_key:
+  title: 'Create sentinel key'
