@@ -1,0 +1,21 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the Sentinel Key module.
+ */
+
+/**
+ * Implements hook_install().
+ * @throws Exception
+ */
+function api_sentinel_install(): void
+{
+  $config = \Drupal::configFactory()->getEditable('sentinel_key.settings');
+  if (!$config->get('encryption_key')) {
+    $generatedKey = base64_encode(random_bytes(32));
+    $config->set('encryption_key', $generatedKey)
+      ->set('encryption_key_hash', hash('sha256', $generatedKey))
+      ->save();
+  }
+}

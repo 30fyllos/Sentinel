@@ -1,0 +1,12 @@
+name: 'Sentinel Key'
+type: module
+description: 'Provides an API key for entities and users.'
+package: Tools
+core_version_requirement: ^10 || ^11
+dependencies:
+  - drupal:node
+  - drupal:rest
+  - drupal:system
+  - drupal:user
+  - sentinel:sentinel
+  - group:group

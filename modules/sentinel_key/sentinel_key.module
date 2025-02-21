@@ -1,0 +1,110 @@
+<?php
+
+/**
+ * @file
+ * Primary module hooks for Sentinel Key module.
+ */
+
+use Drupal\sentinel_key\Event\CacheEvent;
+use Drupal\Core\Render\Element;
+use Drupal\user\UserInterface;
+
+/**
+ * Implements hook_theme().
+ */
+function sentinel_key_theme(): array {
+  return [
+    'sentinel_key' => ['render element' => 'elements'],
+  ];
+}
+
+/**
+ * Prepares variables for sentinel key templates.
+ *
+ * Default template: sentinel-key.html.twig.
+ *
+ * @param array $variables
+ *   An associative array containing:
+ *   - elements: An associative array containing the sentinel key information and any
+ *     fields attached to the entity.
+ *   - attributes: HTML attributes for the containing element.
+ */
+function template_preprocess_sentinel_key(array &$variables): void {
+  $variables['view_mode'] = $variables['elements']['#view_mode'];
+  foreach (Element::children($variables['elements']) as $key) {
+    $variables['content'][$key] = $variables['elements'][$key];
+  }
+}
+
+/**
+ * Implements hook_user_cancel().
+ */
+function sentinel_key_user_cancel($edit, UserInterface $account, $method): void {
+  switch ($method) {
+    case 'user_cancel_block_unpublish':
+      // Unpublish sentinel keys.
+      $storage = \Drupal::entityTypeManager()->getStorage('sentinel_key');
+      $sentinel_key_ids = $storage->getQuery()
+        ->condition('uid', $account->id())
+        ->condition('status', 1)
+        ->accessCheck(FALSE)
+        ->execute();
+      foreach ($storage->loadMultiple($sentinel_key_ids) as $sentinel_key) {
+        $sentinel_key->set('status', FALSE)->save();
+      }
+      break;
+
+    case 'user_cancel_reassign':
+      // Anonymize sentinel keys.
+      $storage = \Drupal::entityTypeManager()->getStorage('sentinel_key');
+      $sentinel_key_ids = $storage->getQuery()
+        ->condition('uid', $account->id())
+        ->accessCheck(FALSE)
+        ->execute();
+      foreach ($storage->loadMultiple($sentinel_key_ids) as $sentinel_key) {
+        $sentinel_key->setOwnerId(0)->save();
+      }
+      break;
+  }
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_predelete() for user entities.
+ */
+function sentinel_key_user_predelete(UserInterface $account): void {
+  // Delete sentinel keys that belong to this account.
+  $storage = \Drupal::entityTypeManager()->getStorage('sentinel_key');
+  $sentinel_key_ids = $storage->getQuery()
+    ->condition('uid', $account->id())
+    ->accessCheck(FALSE)
+    ->execute();
+  $storage->delete(
+    $storage->loadMultiple($sentinel_key_ids)
+  );
+}
+
+/**
+ * Implements hook_cache_flush().
+ */
+function sentinel_key_cache_flush() {
+  // Get the event dispatcher service.
+  $event_dispatcher = \Drupal::service('event_dispatcher');
+
+  // Create the event instance.
+  $event = new CacheEvent();
+
+  // Dispatch the custom event.
+  $event_dispatcher->dispatch($event, CacheEvent::FLUSH);
+}
+
+/**
+ * Implements hook_mail().
+ */
+function sentinel_key_mail($key, &$message, $params) {
+  $data['user'] = $params['account'];
+  $options['langcode'] = $message['langcode'];
+  user_mail_tokens($variables, $data, $options);
+  $message['subject'] = $params['subject'];
+  $message['body'][] = $params['message'];
+  // Required from symfony_mailer https://www.drupal.org/project/easy_email/issues/3392148.
+}

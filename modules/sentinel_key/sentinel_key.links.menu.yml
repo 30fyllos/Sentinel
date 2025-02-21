@@ -1,0 +1,11 @@
+entity.sentinel_key.settings:
+  title: 'Sentinel Key'
+  description: 'Configure a Sentinel Key entity type.'
+  route_name:  entity.sentinel_key.settings
+  parent: system.admin_structure
+
+entity.sentinel_key.collection:
+  title: 'Sentinel Keys'
+  description: 'List of sentinel keys.'
+  route_name: entity.sentinel_key.collection
+  parent: system.admin_content

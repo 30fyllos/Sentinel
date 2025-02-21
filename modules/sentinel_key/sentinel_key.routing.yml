@@ -1,0 +1,7 @@
+entity.sentinel_key.settings:
+  path: 'admin/structure/sentinel-key'
+  defaults:
+    _form: '\Drupal\sentinel_key\Form\SentinelKeySettingsForm'
+    _title: 'Sentinel Key'
+  requirements:
+    _permission: 'administer sentinel_key'

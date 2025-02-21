@@ -1,0 +1,5 @@
+sentinel_key.add_form:
+  title: 'Add sentinel key'
+  route_name: entity.sentinel_key.add_form
+  appears_on:
+    - entity.sentinel_key.collection
