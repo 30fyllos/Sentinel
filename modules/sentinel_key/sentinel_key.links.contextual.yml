@@ -1,0 +1,10 @@
+entity.sentinel_key.edit_form:
+  route_name: entity.sentinel_key.edit_form
+  group: sentinel_key
+  title: 'Edit'
+
+entity.sentinel_key.delete_form:
+  route_name: entity.sentinel_key.delete_form
+  group: sentinel_key
+  title: 'Delete'
+  weight: 10

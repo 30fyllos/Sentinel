@@ -1,0 +1,10 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - sentinel_key
+id: sentinel_key_delete_action
+label: 'Delete sentinel keys'
+type: sentinel_key
+plugin: entity:delete_action:sentinel_key
+configuration: {  }

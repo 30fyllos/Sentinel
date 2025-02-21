@@ -1,0 +1,30 @@
+services:
+  logger.channel.sentinel_key:
+    parent: logger.channel_base
+    arguments: [ 'sentinel_key' ]
+
+  sentinel_key.auth:
+    class: 'Drupal\sentinel_key\Authentication\SentinelKeyAuthProvider'
+    arguments: ['@cache.default', '@logger.channel.sentinel_key', '@config.factory', '@path.current', '@sentinel_key.manager', '@entity_type.manager']
+    tags:
+      - { name: authentication_provider, provider_id: 'sentinel_key_auth', priority: 10 }
+
+  sentinel_key.manager:
+    class: 'Drupal\sentinel_key\Service\SentinelKeyManager'
+    arguments: ['@entity_type.manager', '@database', '@config.factory', '@logger.channel.sentinel_key', '@cache.default', '@current_user', '@tempstore.private', '@sentinel_key.notification']
+
+  sentinel_key.notification:
+    class: Drupal\sentinel_key\Service\SentinelKeyNotificationService
+    arguments: [ '@plugin.manager.mail', '@messenger', '@queue', '@config.factory', '@logger.channel.sentinel_key' ]
+
+  sentinel_key.encryption_key_change_subscriber:
+    class: 'Drupal\sentinel_key\EventSubscriber\EncryptionKeyChangeSubscriber'
+    arguments: [ '@config.factory', '@state', '@logger.channel.sentinel_key', '@sentinel_key.manager' ]
+    tags:
+      - { name: 'event_subscriber' }
+
+  sentinel_key.cleanup_cron:
+    class: 'Drupal\sentinel_key\Cron\SentinelKeyCleanupCron'
+    arguments: [ '@database', '@logger.channel.sentinel_key' ]
+    tags:
+      - { name: 'scheduler.task', label: 'Clean expired API keys', method: 'cleanupExpiredKeys', schedule: '0 3 * * *' } # Runs at 3 AM daily

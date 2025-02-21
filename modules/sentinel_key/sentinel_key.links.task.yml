@@ -1,0 +1,22 @@
+entity.sentinel_key.settings:
+  title: 'Settings'
+  route_name: entity.sentinel_key.settings
+  base_route: entity.sentinel_key.settings
+entity.sentinel_key.view:
+  title: 'View'
+  route_name: entity.sentinel_key.canonical
+  base_route: entity.sentinel_key.canonical
+entity.sentinel_key.edit_form:
+  title: 'Edit'
+  route_name: entity.sentinel_key.edit_form
+  base_route: entity.sentinel_key.canonical
+entity.sentinel_key.delete_form:
+  title: 'Delete'
+  route_name: entity.sentinel_key.delete_form
+  base_route: entity.sentinel_key.canonical
+  weight: 10
+entity.sentinel_key.collection:
+  title: 'Sentinel Keys'
+  route_name: entity.sentinel_key.collection
+  base_route: system.admin_content
+  weight: 10
