@@ -6,7 +6,7 @@ use Drupal\rest\Plugin\ResourceBase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Drupal\api_sentinel\Authentication\ApiSentinelAuthProvider;
+use Drupal\sentinel_key\Authentication\SentinelKeyAuthProvider;
 use Drupal\Core\Session\AccountProxyInterface;
 
 /**
@@ -25,9 +25,9 @@ class SentinelKeyResource extends ResourceBase {
   /**
    * The authentication provider.
    *
-   * @var ApiSentinelAuthProvider
+   * @var SentinelKeyAuthProvider
    */
-  protected ApiSentinelAuthProvider $authProvider;
+  protected SentinelKeyAuthProvider $authProvider;
 
   /**
    * The current user.
@@ -45,12 +45,12 @@ class SentinelKeyResource extends ResourceBase {
    *   The plugin ID.
    * @param mixed $plugin_definition
    *   The plugin definition.
-   * @param ApiSentinelAuthProvider $authProvider
+   * @param SentinelKeyAuthProvider $authProvider
    *   The API authentication provider.
    * @param AccountProxyInterface $currentUser
    *   The current user.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, $serializer_formats, $logger, ApiSentinelAuthProvider $authProvider, AccountProxyInterface $currentUser) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, $serializer_formats, $logger, SentinelKeyAuthProvider $authProvider, AccountProxyInterface $currentUser) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $serializer_formats, $logger);
     $this->authProvider = $authProvider;
     $this->currentUser = $currentUser;
@@ -66,7 +66,7 @@ class SentinelKeyResource extends ResourceBase {
       $plugin_definition,
       $container->getParameter('serializer.formats'),
       $container->get('logger.factory')->get('rest'),
-      $container->get('api_sentinel.auth'),
+      $container->get('sentinel_key.auth'),
       $container->get('current_user')
     );
   }

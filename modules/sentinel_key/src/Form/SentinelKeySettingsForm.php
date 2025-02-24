@@ -4,10 +4,16 @@ declare(strict_types=1);
 
 namespace Drupal\sentinel_key\Form;
 
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\TypedConfigManagerInterface;
+use Drupal\Core\Entity\ContentEntityTypeInterface;
+use Drupal\Core\Entity\EntityTypeBundleInfo;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\sentinel_key\Enum\Timeframe;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Configuration form for a sentinel key entity type.
@@ -15,31 +21,73 @@ use Drupal\sentinel_key\Enum\Timeframe;
 final class SentinelKeySettingsForm extends ConfigFormBase {
 
   /**
+   * The entity type manager.
+   *
+   * @var EntityTypeManagerInterface
+   */
+  protected EntityTypeManagerInterface $entityTypeManager;
+
+  /**
+   * The bundle info service.
+   *
+   * @var EntityTypeBundleInfo
+   */
+  protected EntityTypeBundleInfo $bundleInfo;
+
+  /**
+   * Constructs a new SentinelKeyEntitiesSettingsForm.
+   *
+   * @param ConfigFactoryInterface $config_factory
+   *   The configuration factory.
+   * @param EntityTypeManagerInterface $entity_type_manager
+   *   The entity type manager.
+   * @param EntityTypeBundleInfo $bundle_info
+   *   The bundle info service.
+   */
+  public function __construct(ConfigFactoryInterface $config_factory, TypedConfigManagerInterface $typedConfigManager, EntityTypeManagerInterface $entity_type_manager, EntityTypeBundleInfo $bundle_info) {
+    parent::__construct($config_factory, $typedConfigManager);
+    $this->entityTypeManager = $entity_type_manager;
+    $this->bundleInfo = $bundle_info;
+  }
+
+  /**
    * {@inheritdoc}
    */
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('config.factory'),
+      $container->get('config.typed'),
+      $container->get('entity_type.manager'),
+      $container->get('entity_type.bundle.info')
+    );
+  }
+
+  /**
+  * {@inheritdoc}
+  */
   protected function getEditableConfigNames() {
     // Specify the configuration object names that this form edits.
     return ['sentinel_key.settings'];
   }
 
   /**
-   * {@inheritdoc}
-   */
+  * {@inheritdoc}
+  */
   public function getFormId(): string {
     return 'sentinel_key_settings';
   }
 
   /**
-   * Builds the API Sentinel settings form.
-   *
-   * @param array $form
-   *   The form structure.
-   * @param FormStateInterface $form_state
-   *   The current state of the form.
-   *
-   * @return array
-   *   The complete form structure.
-   */
+  * Builds the API Sentinel settings form.
+  *
+  * @param array $form
+  *   The form structure.
+  * @param FormStateInterface $form_state
+  *   The current state of the form.
+  *
+  * @return array
+  *   The complete form structure.
+  */
   public function buildForm(array $form, FormStateInterface $form_state): array
   {
     // Load the configuration once.
@@ -131,21 +179,25 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
   }
 
   /**
-   * Handles form submission.
-   *
-   * Saves the updated configuration settings and forces key regeneration if
-   * the encryption settings have changed.
-   *
-   * @param array $form
-   *   The complete form structure.
-   * @param FormStateInterface $form_state
-   *   The current state of the form.
-   */
+  * Handles form submission.
+  *
+  * Saves the updated configuration settings and forces key regeneration if
+  * the encryption settings have changed.
+  *
+  * @param array $form
+  *   The complete form structure.
+  * @param FormStateInterface $form_state
+  *   The current state of the form.
+  */
   public function submitForm(array &$form, FormStateInterface $form_state): void
   {
 
+    // Save only the checked items (remove unchecked ones).
+    $selected = array_filter($form_state->getValue('allowed_affiliation_entity_types'));
+
     // Save configuration settings.
     $this->config('sentinel_key.settings')
+      ->set('allowed_affiliation_entity_types', $selected)
       ->set('whitelist_ips', array_filter(explode("\n", trim($form_state->getValue('whitelist_ips')))))
       ->set('blacklist_ips', array_filter(explode("\n", trim($form_state->getValue('blacklist_ips')))))
       ->set('custom_auth_header', trim($form_state->getValue('custom_auth_header')))

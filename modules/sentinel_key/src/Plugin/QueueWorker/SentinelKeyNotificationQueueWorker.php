@@ -4,8 +4,8 @@ namespace Drupal\sentinel_key\Plugin\QueueWorker;
 
 use Drupal\Core\Queue\QueueWorkerBase;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
+use Drupal\sentinel_key\Service\SentinelKeyNotificationService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Drupal\api_sentinel\Service\ApiSentinelNotificationService;
 
 /**
  * Processes API Sentinel notification tasks.
@@ -21,9 +21,9 @@ class SentinelKeyNotificationQueueWorker extends QueueWorkerBase implements Cont
   /**
    * The API Sentinel Notification service.
    *
-   * @var \Drupal\api_sentinel\Service\ApiSentinelNotificationService
+   * @var SentinelKeyNotificationService
    */
-  protected ApiSentinelNotificationService $notificationService;
+  protected SentinelKeyNotificationService $notificationService;
 
   /**
    * Constructs a new ApiSentinelNotificationQueueWorker.
@@ -34,10 +34,10 @@ class SentinelKeyNotificationQueueWorker extends QueueWorkerBase implements Cont
    *   The plugin ID for the plugin instance.
    * @param mixed $plugin_definition
    *   The plugin implementation definition.
-   * @param \Drupal\api_sentinel\Service\ApiSentinelNotificationService $notificationService
+   * @param SentinelKeyNotificationService $notificationService
    *   The API Sentinel Notification service.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, ApiSentinelNotificationService $notificationService) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, SentinelKeyNotificationService $notificationService) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
     $this->notificationService = $notificationService;
   }

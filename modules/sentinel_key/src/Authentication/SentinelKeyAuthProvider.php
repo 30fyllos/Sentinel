@@ -187,24 +187,44 @@ class SentinelKeyAuthProvider implements AuthenticationProviderInterface {
     }
 
     // Check if the API key is blocked.
-    if ($apiKeyEntity->get('blocked')->value) {
-      $this->sentinelKeyManager->logKeyUsage($apiKeyEntity->id());
-      $this->logger->warning('Blocked API key {id} attempted authentication.', ['id' => $apiKeyEntity->id()]);
-      return NULL;
-    }
+//    if ($apiKeyEntity->get('blocked')->value) {
+//      $this->sentinelKeyManager->logKeyUsage($apiKeyEntity->id());
+//      $this->logger->warning('Blocked API key {id} attempted authentication.', ['id' => $apiKeyEntity->id()]);
+//      return NULL;
+//    }
 
     // Check for key expiration.
-    $expires = $apiKeyEntity->get('expires')->value;
-    if ($expires && time() > $expires) {
-      $this->sentinelKeyManager->logKeyUsage($apiKeyEntity->id());
-      $this->logger->warning('API key for user {uid} has expired.', ['uid' => $apiKeyEntity->get('uid')->target_id]);
-      return NULL;
-    }
+//    $expires = $apiKeyEntity->get('expires')->value;
+//    if ($expires && time() > $expires) {
+//      $this->sentinelKeyManager->logKeyUsage($apiKeyEntity->id());
+//      $this->logger->warning('API key for user {uid} has expired.', ['uid' => $apiKeyEntity->get('uid')->target_id]);
+//      return NULL;
+//    }
 
     // Enforce rate limiting and failure blocking.
-    if ($this->sentinelKeyManager->blockFailedAttempt($apiKeyEntity->id()) || $this->sentinelKeyManager->checkRateLimit($apiKeyEntity->id())) {
-      return NULL;
-    }
+//    if ($this->sentinelKeyManager->blockFailedAttempt($apiKeyEntity->id()) || $this->sentinelKeyManager->checkRateLimit($apiKeyEntity->id())) {
+//      return NULL;
+//    }
+
+    // CUSTOM: Check affiliation-based permissions.
+    // This assumes your Sentinel Key entity has an 'affiliation' field.
+//    if ($apiKeyEntity->hasField('affiliation') && !$apiKeyEntity->get('affiliation')->isEmpty()) {
+//      $affiliated_entity = $apiKeyEntity->get('affiliation')->entity;
+//      if ($affiliated_entity) {
+//        // For example, determine the affiliation type using its entity type ID.
+//        $affiliation_type = $affiliated_entity->getEntityTypeId();
+//        // Load the permission mapping from configuration.
+//        $permissions_config = $this->configFactory->get('sentinel_key.permissions')->get('affiliation_permissions');
+//        $required_permission = $permissions_config[$affiliation_type] ?? NULL;
+//        if ($required_permission && !$this->currentUser->hasPermission($required_permission)) {
+//          $this->logger->warning('User does not have required permission {permission} for affiliation type {type}.', [
+//            'permission' => $required_permission,
+//            'type' => $affiliation_type,
+//          ]);
+//          return NULL;
+//        }
+//      }
+//    }
 
     // Load the user entity and verify that the user is active.
     $user = User::load($apiKeyEntity->get('uid')->target_id);

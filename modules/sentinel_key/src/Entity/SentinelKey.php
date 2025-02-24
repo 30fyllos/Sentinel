@@ -150,7 +150,7 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
       ->setDisplayConfigurable('view', TRUE);
 
     $fields['uid'] = BaseFieldDefinition::create('entity_reference')
-      ->setLabel(t('Author'))
+      ->setLabel(t('Owner'))
       ->setSetting('target_type', 'user')
       ->setDefaultValueCallback(self::class . '::getDefaultEntityOwner')
       ->setDisplayOptions('form', [
@@ -208,6 +208,11 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
       ->setSettings([
         'max_length' => 128,
         'text_processing' => 0,
+      ])
+      ->setDisplayOptions('view', [
+        'label' => 'hidden',
+        'type' => 'decrypted_field_formatter',
+        'weight' => -5,
       ]);
 
     // Boolean field to mark if the key is blocked.
