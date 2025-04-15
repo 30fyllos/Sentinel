@@ -9,6 +9,7 @@ use Drupal\Core\Entity\EntityChangedTrait;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Field\BaseFieldDefinition;
+use Drupal\sentinel_key\Exception\SentinelKeyException;
 use Drupal\sentinel_key\SentinelKeyInterface;
 use Drupal\user\EntityOwnerTrait;
 use Random\RandomException;
@@ -35,6 +36,8 @@ use Random\RandomException;
  *       "edit" = "Drupal\sentinel_key\Form\SentinelKeyForm",
  *       "delete" = "Drupal\Core\Entity\ContentEntityDeleteForm",
  *       "delete-multiple-confirm" = "Drupal\Core\Entity\Form\DeleteMultipleForm",
+ *       "regenerate" = "Drupal\sentinel_key\Form\SentinelKeyRegenerateConfirmForm",
+ *       "block" = "Drupal\sentinel_key\Form\SentinelKeyBlockConfirmForm"
  *     },
  *     "route_provider" = {
  *       "html" = "Drupal\Core\Entity\Routing\AdminHtmlRouteProvider",
@@ -55,6 +58,8 @@ use Random\RandomException;
  *     "edit-form" = "/sentinel-key/{sentinel_key}/edit",
  *     "delete-form" = "/sentinel-key/{sentinel_key}/delete",
  *     "delete-multiple-form" = "/admin/content/sentinel-key/delete-multiple",
+ *     "regenerate-key" = "/admin/structure/sentinel-key/{sentinel_key}/regenerate-key",
+ *     "toggle-block" = "/admin/structure/sentinel-key/{sentinel_key}/toggle-block"
  *   },
  *   field_ui_base_route = "entity.sentinel_key.settings",
  * )
@@ -88,6 +93,27 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
       $this->set('api_key', hash('sha256', $apiKey));
       $this->set('data', $this->apiKeyManager()->encryptValue($apiKey));
     }
+
+
+    // Enforce unique owner.
+    $query = \Drupal::entityTypeManager()
+      ->getStorage('sentinel_key')
+      ->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('uid', $this->getOwnerId());
+
+    // Exclude self if updating.
+    if (!$this->isNew()) {
+      $query->condition('id', $this->id(), '<>');
+    }
+
+    $existing = $query->execute();
+
+    if (!empty($existing)) {
+      \Drupal::messenger()->addError(t('This user already owns an API key.'));
+      throw new SentinelKeyException('This user already owns an API key.');
+    }
+
   }
 
   /**
@@ -130,7 +156,9 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
         'label' => 'above',
         'weight' => 0,
         'settings' => [
-          'format' => 'enabled-disabled',
+          'format' => 'custom',
+          'format_custom_false' => 'Enabled',
+          'format_custom_true' => 'Blocked',
         ],
       ])
       ->setDisplayConfigurable('view', TRUE);
@@ -150,8 +178,9 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
       ->setDisplayConfigurable('view', TRUE);
 
     $fields['uid'] = BaseFieldDefinition::create('entity_reference')
-      ->setLabel(t('Author'))
+      ->setLabel(t('Owner'))
       ->setSetting('target_type', 'user')
+      ->setSetting('handler', 'sentinel_key_user_selection')
       ->setDefaultValueCallback(self::class . '::getDefaultEntityOwner')
       ->setDisplayOptions('form', [
         'type' => 'entity_reference_autocomplete',
@@ -170,26 +199,26 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
       ])
       ->setDisplayConfigurable('view', TRUE);
 
-    $fields['affiliation'] = BaseFieldDefinition::create('entity_reference')
-      ->setLabel(t('Affiliated to'))
-      ->setSetting('target_type', 'group')
-      ->setDisplayOptions('form', [
-        'type' => 'entity_reference_autocomplete',
-        'settings' => [
-          'match_operator' => 'CONTAINS',
-          'size' => 60,
-          'placeholder' => '',
-        ],
-        'weight' => 15,
-      ])
-      ->setDisplayConfigurable('form', TRUE)
-      ->setDisplayOptions('view', [
-        'label' => 'above',
-        'type' => 'entity_reference_label',
-        'weight' => 15,
-      ])
-      ->setDisplayConfigurable('view', TRUE)
-      ->setRequired(TRUE);
+//    $fields['affiliation'] = BaseFieldDefinition::create('entity_reference')
+//      ->setLabel(t('Affiliated to'))
+//      ->setSetting('target_type', 'user')
+//      ->setDisplayOptions('form', [
+//        'type' => 'entity_reference_autocomplete',
+//        'settings' => [
+//          'match_operator' => 'CONTAINS',
+//          'size' => 60,
+//          'placeholder' => '',
+//        ],
+//        'weight' => 15,
+//      ])
+//      ->setDisplayConfigurable('form', TRUE)
+//      ->setDisplayOptions('view', [
+//        'label' => 'above',
+//        'type' => 'entity_reference_label',
+//        'weight' => 15,
+//      ])
+//      ->setDisplayConfigurable('view', TRUE)
+//      ->setRequired(TRUE);
 
     // API key string.
     $fields['api_key'] = BaseFieldDefinition::create('string')
@@ -208,13 +237,18 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
       ->setSettings([
         'max_length' => 128,
         'text_processing' => 0,
+      ])
+      ->setDisplayOptions('view', [
+        'label' => 'hidden',
+        'type' => 'decrypted_field_formatter',
+        'weight' => -5,
       ]);
 
     // Boolean field to mark if the key is blocked.
-    $fields['blocked'] = BaseFieldDefinition::create('boolean')
-      ->setLabel(t('Blocked'))
-      ->setDescription(t('Indicates whether the API key is blocked.'))
-      ->setDefaultValue(FALSE);
+//    $fields['blocked'] = BaseFieldDefinition::create('boolean')
+//      ->setLabel(t('Blocked'))
+//      ->setDescription(t('Indicates whether the API key is blocked.'))
+//      ->setDefaultValue(FALSE);
 
     // Expiration timestamp (optional).
     $fields['expires'] = BaseFieldDefinition::create('datetime')
@@ -281,12 +315,38 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
    * {@inheritdoc}
    * @throws RandomException
    */
-  public function genApiKey(string $api_key): static
+  public function genApiKey(): static
   {
-    $apiKey = base64_encode(random_bytes(32));
-    $this->set('api_key', hash('sha256', $apiKey));
-    $this->set('data', $this->apiKeyManager()->encryptValue($apiKey));
+    $key = base64_encode(random_bytes(32));
+    $this->set('api_key', hash('sha256', $key));
+    $this->set('data', $this->apiKeyManager()->encryptValue($key));
     return $this;
   }
 
+  /**
+   * {@inheritdoc}
+   */
+  public function isBlocked(): bool
+  {
+    $status = (bool) $this->get('status')->value;
+    return !$status;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function toggleBlock(): static
+  {
+    $status = (bool) $this->get('status')->value;
+    $this->set('status', !$status);
+    return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function isExpired(): bool
+  {
+    return time() > $this->get('expires')->value;
+  }
 }

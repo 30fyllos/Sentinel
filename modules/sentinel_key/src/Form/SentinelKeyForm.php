@@ -15,6 +15,34 @@ final class SentinelKeyForm extends ContentEntityForm {
   /**
    * {@inheritdoc}
    */
+  public function buildForm(array $form, FormStateInterface $form_state) {
+    $form = parent::buildForm($form, $form_state);
+
+    // Only users with 'administer sentinel_key' can edit the owner field.
+    if (!$this->currentUser()->hasPermission('administer sentinel_key')) {
+      // Option 1: Remove the field so it isn’t editable.
+      if (isset($form['uid'])) {
+        $form['uid']['#access'] = FALSE;
+      }
+      // Option 2: Or, display it as a disabled element.
+      // if (isset($form['uid'])) {
+      //   $form['uid']['#disabled'] = TRUE;
+      // }
+    }
+
+    return $form;
+  }
+
+  /**
+   * Helper method to get the current user.
+   */
+  protected function currentUser() {
+    return \Drupal::currentUser();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function save(array $form, FormStateInterface $form_state): int {
     $result = parent::save($form, $form_state);
 

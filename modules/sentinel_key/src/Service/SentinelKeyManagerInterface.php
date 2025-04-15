@@ -3,6 +3,7 @@
 namespace Drupal\sentinel_key\Service;
 
 use Drupal\Core\Session\AccountInterface;
+use Drupal\sentinel_key\Entity\SentinelKey;
 use Random\RandomException;
 
 /**
@@ -131,13 +132,13 @@ interface SentinelKeyManagerInterface {
   /**
    * Toggles the block status of an API key.
    *
-   * @param int $key_id
+   * @param SentinelKey|int $key
    *   The API key ID.
    *
    * @return bool
    *   TRUE if the key was successfully updated, FALSE if not found.
    */
-  public function toggleApiKeyStatus(int $key_id): bool;
+  public function toggleApiKeyStatus(SentinelKey|int $key): bool;
 
   /**
    * Gets the API key expiration timestamp for a user.

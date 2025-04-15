@@ -6,7 +6,9 @@ namespace Drupal\sentinel_key;
 
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityChangedInterface;
+use Drupal\Core\Session\AccountInterface;
 use Drupal\user\EntityOwnerInterface;
+use Drupal\views\Plugin\views\field\Boolean;
 
 /**
  * Provides an interface defining a sentinel key entity type.
@@ -23,12 +25,9 @@ interface SentinelKeyInterface extends ContentEntityInterface, EntityOwnerInterf
   /**
    * Generate the API key value.
    *
-   * @param string $api_key
-   *   The API key string.
-   *
    * @return $this
    */
-  public function genApiKey(string $api_key): static;
+  public function genApiKey(): static;
 
   /**
    * Gets the hashed API key value.
@@ -37,4 +36,27 @@ interface SentinelKeyInterface extends ContentEntityInterface, EntityOwnerInterf
    *   The API key string.
    */
   public function getHashedApiKey(): string;
+
+  /**
+   * The API key status Blocked/Active or not.
+   *
+   * @return bool
+   *   The API key status.
+   */
+  public function isBlocked(): bool;
+
+  /**
+   * Toggle API Key status.
+   *
+   * @return $this
+   */
+  public function toggleBlock(): static;
+
+  /**
+   * The API key expiration status.
+   *
+   * @return bool
+   *   The API key status.
+   */
+  public function isExpired(): bool;
 }
