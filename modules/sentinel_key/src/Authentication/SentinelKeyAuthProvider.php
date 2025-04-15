@@ -6,6 +6,8 @@ use Drupal\Core\Authentication\AuthenticationProviderInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Path\CurrentPathStack;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\sentinel_key\Entity\SentinelKey;
+use Drupal\sentinel_key\SentinelKeyInterface;
 use Drupal\user\Entity\User;
 use Drupal\sentinel_key\Service\SentinelKeyManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -178,8 +180,9 @@ class SentinelKeyAuthProvider implements AuthenticationProviderInterface {
 
     // Lookup the API key entity using the entity API.
     $storage = $this->entityTypeManager->getStorage('sentinel_key');
-    $api_keys = $storage->loadByProperties(['api_key' => hash('sha256', $apiKey)]);
-    $apiKeyEntity = !empty($api_keys) ? reset($api_keys) : NULL;
+    $apiKeyEntities = $storage->loadByProperties(['api_key' => hash('sha256', $apiKey)]);
+    /** @var SentinelKeyInterface $apiKeyEntity */
+    $apiKeyEntity = !empty($apiKeyEntities) ? reset($apiKeyEntities) : NULL;
 
     if (!$apiKeyEntity) {
       $this->logger->warning('Authentication failed: Invalid API key.');
@@ -187,19 +190,18 @@ class SentinelKeyAuthProvider implements AuthenticationProviderInterface {
     }
 
     // Check if the API key is blocked.
-//    if ($apiKeyEntity->get('blocked')->value) {
+    if ($apiKeyEntity->isBlocked()) {
 //      $this->sentinelKeyManager->logKeyUsage($apiKeyEntity->id());
-//      $this->logger->warning('Blocked API key {id} attempted authentication.', ['id' => $apiKeyEntity->id()]);
-//      return NULL;
-//    }
+      $this->logger->warning('Blocked API key {id} attempted authentication.', ['id' => $apiKeyEntity->id()]);
+      return NULL;
+    }
 
     // Check for key expiration.
-//    $expires = $apiKeyEntity->get('expires')->value;
-//    if ($expires && time() > $expires) {
+    if ($apiKeyEntity->isExpired()) {
 //      $this->sentinelKeyManager->logKeyUsage($apiKeyEntity->id());
-//      $this->logger->warning('API key for user {uid} has expired.', ['uid' => $apiKeyEntity->get('uid')->target_id]);
-//      return NULL;
-//    }
+      $this->logger->warning('API key for user {uid} has expired.', ['uid' => $apiKeyEntity->get('uid')->target_id]);
+      return NULL;
+    }
 
     // Enforce rate limiting and failure blocking.
 //    if ($this->sentinelKeyManager->blockFailedAttempt($apiKeyEntity->id()) || $this->sentinelKeyManager->checkRateLimit($apiKeyEntity->id())) {

@@ -5,3 +5,19 @@ entity.sentinel_key.settings:
     _title: 'Sentinel Key'
   requirements:
     _permission: 'administer sentinel_key'
+
+entity.sentinel_key.regenerate_key:
+  path: '/admin/structure/sentinel-key/{sentinel_key}/regenerate-key'
+  defaults:
+    _entity_form: 'sentinel_key.regenerate'
+    _title: 'Sentinel Regenerate Key'
+  requirements:
+    _permission: 'regenerate sentinel_key'
+
+entity.sentinel_key.toggle_block:
+  path: '/admin/structure/sentinel-key/{sentinel_key}/toggle-block'
+  defaults:
+    _entity_form: 'sentinel_key.block'
+    _title: 'Toggle Block Status'
+  requirements:
+    _permission: 'block sentinel_key'

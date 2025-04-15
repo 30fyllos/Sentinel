@@ -3,8 +3,20 @@ entity.sentinel_key.edit_form:
   group: sentinel_key
   title: 'Edit'
 
+entity.sentinel_key.regenerate_key:
+  route_name: entity.sentinel_key.regenerate_key
+  group: sentinel_key
+  title: 'Regenerate'
+  weight: 10
+
+entity.sentinel_key.toggle_block:
+  route_name: entity.sentinel_key.toggle_block
+  group: sentinel_key
+  title: 'Block/Unblock'
+  weight: 11
+
 entity.sentinel_key.delete_form:
   route_name: entity.sentinel_key.delete_form
   group: sentinel_key
   title: 'Delete'
-  weight: 10
+  weight: 12

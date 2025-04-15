@@ -2,6 +2,7 @@
 
 namespace Drupal\sentinel_key\Service;
 
+use Drupal\sentinel_key\Entity\SentinelKey;
 use Drupal\sentinel_key\Enum\Timeframe;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Config\ConfigFactoryInterface;
@@ -321,17 +322,21 @@ class SentinelKeyManager implements SentinelKeyManagerInterface {
 
   /**
    * {@inheritdoc}
+   * TODO: delete later?
    */
-  public function toggleApiKeyStatus(int $key_id): bool {
-    $storage = $this->entityTypeManager->getStorage('sentinel_key');
-    $apiKeyEntity = $storage->load($key_id);
-    if ($apiKeyEntity) {
-      $current_status = (int) $apiKeyEntity->get('blocked')->value;
-      $new_status = $current_status ? 0 : 1;
-      $apiKeyEntity->set('blocked', $new_status);
-      $apiKeyEntity->save();
-      $message = $new_status ? 'API key has been blocked.' : 'API key has been unblocked.';
-      $this->logger->notice($message, ['key_id' => $key_id, 'changed_by' => $this->currentUser->id()]);
+  public function toggleApiKeyStatus(SentinelKey|int $key): bool {
+    if (!$key) return FALSE;
+
+    if (!$key instanceof SentinelKey) {
+      $storage = $this->entityTypeManager->getStorage('sentinel_key');
+      $key = $storage->load($key);
+    }
+
+    if ($key) {
+      $key->set('blocked', !$key->isBlocked());
+      $key->save();
+      $message = $key->isBlocked() ? 'API key has been blocked.' : 'API key has been unblocked.';
+      $this->logger->notice($message, ['key_id' => $key->id(), 'changed_by' => $this->currentUser->id()]);
       return TRUE;
     }
     return FALSE;

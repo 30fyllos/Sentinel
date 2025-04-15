@@ -52,3 +52,7 @@ sentinel.settings:
     auto_generate_duration_unit:
       type: int
       label: 'Auto-Generate Duration Unit'
+
+entity_reference_selection.sentinel_key_user_selection:
+  type: entity_reference_selection.default:user
+  label: 'Unique User Selection handler settings'

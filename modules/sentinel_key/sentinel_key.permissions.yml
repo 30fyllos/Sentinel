@@ -9,3 +9,8 @@ delete sentinel_key:
   title: 'Delete sentinel key'
 create sentinel_key:
   title: 'Create sentinel key'
+regenerate sentinel_key:
+  title: 'Regenerate sentinel key'
+block sentinel_key:
+  title: 'Block/Unblock sentinel key'
+  restrict access: true

@@ -38,7 +38,7 @@ class DecryptedFieldFormatter extends FormatterBase implements ContainerFactoryP
 
       // Build the output markup.
       $output = '<div>';
-      $output .= '<a href="#" onclick="var el = document.getElementById(\'' . $unique_id . '\'); if (el.style.display === \'none\') { el.style.display = \'block\'; this.innerHTML = \'Hide\'; } else { el.style.display = \'none\'; this.innerHTML = \'Show\'; } return false;">Show</a>';
+      $output .= '<a href="#" onclick="var el = document.getElementById(\'' . $unique_id . '\'); if (el.style.display === \'none\') { el.style.display = \'block\'; this.innerHTML = \'Hide key\'; } else { el.style.display = \'none\'; this.innerHTML = \'Show key\'; } return false;">Show key</a>';
       $output .= '<div id="' . $unique_id . '" style="display:none; margin-top:5px;">' . Html::escape($decrypted_value) . '</div>';
       $output .= '</div>';
 

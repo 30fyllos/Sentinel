@@ -30,6 +30,8 @@ final class SentinelKeyAccessControlHandler extends EntityAccessControlHandler {
       'view' => AccessResult::allowedIfHasPermission($account, 'view sentinel_key'),
       'update' => AccessResult::allowedIfHasPermission($account, 'edit sentinel_key'),
       'delete' => AccessResult::allowedIfHasPermission($account, 'delete sentinel_key'),
+      'regenerate' => AccessResult::allowedIfHasPermission($account, 'regenerate sentinel_key'),
+      'block_unblock' => AccessResult::allowedIfHasPermission($account, 'block sentinel_key'),
       default => AccessResult::neutral(),
     };
   }
