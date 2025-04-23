@@ -23,6 +23,7 @@ final class SentinelKeyForm extends ContentEntityForm {
       // Option 1: Remove the field so it isn’t editable.
       if (isset($form['uid'])) {
         $form['uid']['#access'] = FALSE;
+        $form['uid']['#default_value'] = 0;
       }
       // Option 2: Or, display it as a disabled element.
       // if (isset($form['uid'])) {

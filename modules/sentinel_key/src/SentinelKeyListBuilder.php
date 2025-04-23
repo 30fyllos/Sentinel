@@ -54,6 +54,7 @@ final class SentinelKeyListBuilder extends EntityListBuilder {
     $header['id'] = $this->t('ID');
     $header['label'] = $this->t('Label');
     $header['status'] = $this->t('Status');
+    $header['blocked'] = $this->t('Blocked');
     $header['uid'] = $this->t('Author');
     $header['created'] = $this->t('Created');
     $header['changed'] = $this->t('Updated');
@@ -67,7 +68,8 @@ final class SentinelKeyListBuilder extends EntityListBuilder {
     /** @var \Drupal\sentinel_key\SentinelKeyInterface $entity */
     $row['id'] = $entity->id();
     $row['label'] = $entity->toLink();
-    $row['status'] = $entity->get('status')->value ? $this->t('Unblocked') : $this->t('Blocked');
+    $row['status'] = $entity->get('status')->value ? $this->t('Enabled') : $this->t('Disabled');
+    $row['blocked'] = $entity->get('status')->value ? $this->t('Unblocked') : $this->t('Blocked');
     $username_options = [
       'label' => 'hidden',
       'settings' => ['link' => $entity->get('uid')->entity->isAuthenticated()],

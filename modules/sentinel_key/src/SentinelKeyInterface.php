@@ -38,10 +38,18 @@ interface SentinelKeyInterface extends ContentEntityInterface, EntityOwnerInterf
   public function getHashedApiKey(): string;
 
   /**
-   * The API key status Blocked/Active or not.
+   * The API key status.
    *
    * @return bool
    *   The API key status.
+   */
+  public function isEnabled(): bool;
+
+  /**
+   * The API key Block/Unblock status.
+   *
+   * @return bool
+   *   The API key block status.
    */
   public function isBlocked(): bool;
 
@@ -51,6 +59,14 @@ interface SentinelKeyInterface extends ContentEntityInterface, EntityOwnerInterf
    * @return $this
    */
   public function toggleBlock(): static;
+
+  /**
+   * Get API key expiration timestamp.
+   *
+   * @return int
+   *   The timestamp.
+   */
+  public function getExpirationTimestamp(): int;
 
   /**
    * The API key expiration status.
