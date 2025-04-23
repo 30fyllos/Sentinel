@@ -5,8 +5,10 @@
  * Primary module hooks for Sentinel Key module.
  */
 
-use Drupal\sentinel_key\Event\CacheEvent;
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Render\Element;
+use Drupal\sentinel_key\Event\EntityCreateEvent;
+use Drupal\sentinel_key\Event\UserLoginEvent;
 use Drupal\user\UserInterface;
 
 /**
@@ -84,17 +86,18 @@ function sentinel_key_user_predelete(UserInterface $account): void {
 }
 
 /**
- * Implements hook_cache_flush().
+ * Implements hook_user_login().
  */
-function sentinel_key_cache_flush() {
+function sentinel_key_user_login($account): void
+{
   // Get the event dispatcher service.
   $event_dispatcher = \Drupal::service('event_dispatcher');
 
   // Create the event instance.
-  $event = new CacheEvent();
+  $event = new UserLoginEvent($account);
 
   // Dispatch the custom event.
-  $event_dispatcher->dispatch($event, CacheEvent::FLUSH);
+  $event_dispatcher->dispatch($event, UserLoginEvent::LOGIN);
 }
 
 /**

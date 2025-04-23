@@ -158,7 +158,6 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
       ->setLabel(t('Label'))
       ->setRequired(TRUE)
       ->setDefaultValueCallback(self::class . '::getRandomDefaultLabel')
-//      ->setDefaultValueCallback([self::class, 'getRandomDefaultLabel'])
       ->setSetting('max_length', 255)
       ->setDisplayOptions('form', [
         'type' => 'string_textfield',

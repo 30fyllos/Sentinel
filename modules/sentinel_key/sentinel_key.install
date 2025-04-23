@@ -9,7 +9,7 @@
  * Implements hook_install().
  * @throws Exception
  */
-function api_sentinel_install(): void
+function sentinel_key_install(): void
 {
   $config = \Drupal::configFactory()->getEditable('sentinel_key.settings');
   if (!$config->get('encryption_key')) {
