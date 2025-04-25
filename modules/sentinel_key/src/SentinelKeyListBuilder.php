@@ -58,6 +58,7 @@ final class SentinelKeyListBuilder extends EntityListBuilder {
     $header['uid'] = $this->t('Author');
     $header['created'] = $this->t('Created');
     $header['changed'] = $this->t('Updated');
+    $header['expires'] = $this->t('Expires');
     return $header + parent::buildHeader();
   }
 
@@ -77,6 +78,7 @@ final class SentinelKeyListBuilder extends EntityListBuilder {
     $row['uid']['data'] = $entity->get('uid')->view($username_options);
     $row['created']['data'] = $entity->get('created')->view(['label' => 'hidden']);
     $row['changed']['data'] = $entity->get('changed')->view(['label' => 'hidden']);
+    $row['expires']['data'] = $entity->get('expires')->view(['label' => 'hidden']);
     return $row + parent::buildRow($entity);
   }
 

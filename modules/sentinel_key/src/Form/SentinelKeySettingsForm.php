@@ -97,12 +97,22 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
     // Cache the Timeframe options so we don't call Timeframe::options() multiple times.
     $timeframe_options = Timeframe::options();
 
-    $form['encryption_notice'] = [
+    $form['tabs'] = [
+      '#type' => 'vertical_tabs',
+      '#title' => $this->t('Sentinel Key Settings'),
+      '#weight' => 0,
+    ];
+
+    $form['general'] = [
+      '#type' => 'details',
+      '#title' => $this->t('General settings'),
+      '#group' => 'tabs',
+    ];
+    $form['general']['encryption_notice'] = [
       '#type' => 'markup',
       '#markup' => '<div class="messages messages--warning"><strong>' . $this->t('Security Advisory:') . '</strong> ' . $this->t('Please select your preferred encryption key storage method. <strong>Changing this setting after keys have been issued will invalidate all existing keys and require regeneration.</strong> We strongly recommend using the environment variable option (<code>SENTINEL_ENCRYPTION_KEY</code>) for enhanced security, isolation of secrets from codebase, and improved deployment practices.') . '</div>',
     ];
-
-    $form['encryption_mode'] = [
+    $form['general']['encryption_mode'] = [
       '#type' => 'radios',
       '#title' => $this->t('Encryption Key Storage Mode'),
       '#description' => $this->t('Choose how encryption keys should be stored. Using an environment variable such as <code>SENTINEL_ENCRYPTION_KEY</code> is strongly recommended for production environments.'),
@@ -113,50 +123,53 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
       '#default_value' => $config->get('encryption_mode') ?? 'config',
     ];
 
-    // Whitelisted IP addresses.
-    $form['whitelist_ips'] = [
+    $form['security'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Security settings'),
+      '#group' => 'tabs',
+    ];
+    $form['security']['whitelist_ips'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Whitelisted IP Addresses'),
       '#description' => $this->t('Enter allowed IPs (one per line). If set, only these IPs can use API keys.'),
       '#default_value' => implode("\n", (array) $config->get('whitelist_ips') ?? []),
     ];
-
-    // Blacklisted IP addresses.
-    $form['blacklist_ips'] = [
+    $form['security']['blacklist_ips'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Blacklisted IP Addresses'),
       '#description' => $this->t('Enter blocked IPs (one per line). Requests from these IPs will be rejected.'),
       '#default_value' => implode("\n", (array) $config->get('blacklist_ips') ?? []),
     ];
-
     // Custom HTTP header for API authentication.
-    $form['custom_auth_header'] = [
+    $form['security']['custom_auth_header'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Custom Authentication Header'),
       '#description' => $this->t('Enter a custom HTTP header for authentication. Default: X-API-KEY'),
       '#default_value' => $config->get('custom_auth_header') ?? 'X-API-KEY',
       '#required' => TRUE,
     ];
-
-    // Allowed API paths.
-    $form['allowed_paths'] = [
+    $form['security']['allowed_paths'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Allowed API Paths'),
       '#description' => $this->t('Enter allowed API paths (one per line). Use wildcards (*) for dynamic segments, e.g., /api/*'),
       '#default_value' => implode("\n", (array) $config->get('allowed_paths') ?? []),
     ];
 
+    $form['rate_limit'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Rate limiting'),
+      '#group' => 'tabs',
+    ];
     // Maximum failed authentication attempts.
-    $form['failure_limit'] = [
+    $form['rate_limit']['failure_limit'] = [
       '#type' => 'number',
       '#title' => $this->t('Max Failed Attempts Before Block'),
       '#default_value' => $config->get('failure_limit', 100),
       '#description' => $this->t('If an API key fails authentication this many times, it will be blocked. Set to 0 to disable.'),
       '#min' => 0,
     ];
-
     // Timeframe over which failures are counted.
-    $form['failure_limit_time'] = [
+    $form['rate_limit']['failure_limit_time'] = [
       '#type' => 'select',
       '#title' => $this->t('Failure Limit Time Per'),
       '#options' => $timeframe_options,
@@ -168,18 +181,16 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
         ],
       ],
     ];
-
     // Maximum allowed API requests.
-    $form['max_rate_limit'] = [
+    $form['rate_limit']['max_rate_limit'] = [
       '#type' => 'number',
       '#title' => $this->t('Max Requests Allowed'),
       '#default_value' => $config->get('max_rate_limit', 100),
       '#description' => $this->t('The maximum number of API requests allowed within the selected period. Set to 0 to disable.'),
       '#min' => 0,
     ];
-
     // Timeframe for rate limiting.
-    $form['max_rate_limit_time'] = [
+    $form['rate_limit']['max_rate_limit_time'] = [
       '#type' => 'select',
       '#title' => $this->t('Rate Limit Time Period'),
       '#options' => $timeframe_options,
@@ -192,15 +203,18 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
       ],
     ];
 
-    // New setting to allow selection of roles eligible for owning a Sentinel Key.
-    // Create a container for the auto-generation settings.
-    $form['auto_generate_settings'] = [
+    $form['auto_generate_tab'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Auto-generate settings'),
+      '#group' => 'tabs',
+    ];
+    $form['auto_generate_tab']['auto_generate_settings'] = [
       '#type' => 'container',
       '#attributes' => ['id' => 'auto-generate-settings-wrapper'],
     ];
 
     // Checkbox to enable auto-generation.
-    $form['auto_generate_settings']['auto_generate'] = [
+    $form['auto_generate_tab']['auto_generate_settings']['auto_generate'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Enable Auto-Generate API Keys on New Registration'),
       '#default_value' => $config->get('auto_generate_enabled') ?: 0,
@@ -229,7 +243,7 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
       }
 
       // Checkboxes for selecting roles.
-      $form['auto_generate_settings']['auto_generate_roles'] = [
+      $form['auto_generate_tab']['auto_generate_settings']['auto_generate_roles'] = [
         '#type' => 'checkboxes',
         '#title' => $this->t('Select Roles for Auto-Generation'),
         '#options' => $role_options,
@@ -242,14 +256,14 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
         '#description' => $this->t('Users registering with these roles will automatically receive an API key.'),
       ];
 
-      $form['auto_generate_settings']['duration_wrapper'] = [
+      $form['auto_generate_tab']['auto_generate_settings']['duration_wrapper'] = [
         '#type' => 'fieldset',
         '#title' => $this->t('Default Expiration Date'),
         '#description' => $this->t('Optional expiration date for auto-generated API keys. Leave blank for no expiration.'),
         '#attributes' => ['class' => ['duration-container']],
       ];
 
-      $form['auto_generate_settings']['duration_wrapper']['auto_generate_duration'] = [
+      $form['auto_generate_tab']['auto_generate_settings']['duration_wrapper']['auto_generate_duration'] = [
         '#type' => 'number',
         '#title' => $this->t('Duration'),
         '#min' => 0,
@@ -262,7 +276,7 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
         ],
       ];
 
-      $form['auto_generate_settings']['duration_wrapper']['auto_generate_duration_unit'] = [
+      $form['auto_generate_tab']['auto_generate_settings']['duration_wrapper']['auto_generate_duration_unit'] = [
         '#type' => 'select',
         '#title' => $this->t('Unit'),
         '#options' => [
@@ -308,7 +322,7 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
     // Save the configuration using our submitForm() method.
     $this->submitForm($form, $form_state);
     // Return the container that holds our auto-generation settings.
-    return $form['auto_generate_settings'];
+    return $form['auto_generate_tab']['auto_generate_settings'];
   }
 
   /**

@@ -292,26 +292,19 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
       ->setDisplayConfigurable('view', TRUE);
 
     // Expiration timestamp (optional).
-    $fields['expires'] = BaseFieldDefinition::create('datetime')
+    $fields['expires'] = BaseFieldDefinition::create('expiration_timestamp')
       ->setLabel(t('Expires'))
       ->setDescription(t('The expiration timestamp for the API key.'))
-      ->setRequired(FALSE)
-      ->setTranslatable(FALSE)
-      ->setSetting('datetime_type', 'date')
       ->setDisplayOptions('view', [
         'label' => 'above',
-        'type' => 'datetime_custom',
-        'settings' => [
-          'timezone_override' => '',
-          'date_format' => 'd/m/Y'
-        ],
+        'type' => 'expiration_timestamp_default',
+        'weight' => 20,
+      ])
+      ->setDisplayOptions('form', [
+        'type' => 'expiration_timestamp_default',
         'weight' => 20,
       ])
       ->setDisplayConfigurable('form', TRUE)
-      ->setDisplayOptions('form', [
-        'type' => 'datetime_default',
-        'weight' => 20,
-      ])
       ->setDisplayConfigurable('view', TRUE);
 
     $fields['created'] = BaseFieldDefinition::create('created')
