@@ -2,16 +2,12 @@
 
 namespace Drupal\sentinel_key\EventSubscriber;
 
+use Drupal\sentinel_key\Event\EntityCreateEvent;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\sentinel_key\Entity\SentinelKey;
 use Drupal\sentinel_key\Event\UserLoginEvent;
-use Drupal\sentinel_key\SentinelKeyInterface;
 use Drupal\sentinel_key\Service\SentinelKeyManagerInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
-use Drupal\entity\Event\EntityEvents;
-use Drupal\Tests\Component\Annotation\Doctrine\Ticket\Doctrine\ORM\Entity;
-use Drupal\user\Event\UserEvents;
 use Drupal\user\UserInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
@@ -80,6 +76,7 @@ class UserAutoGenerateSubscriber implements EventSubscriberInterface {
   public static function getSubscribedEvents() {
     return [
       UserLoginEvent::LOGIN => 'onUserLogin',
+      EntityCreateEvent::INSERT => 'onEntityCreate',
     ];
   }
 
@@ -90,6 +87,20 @@ class UserAutoGenerateSubscriber implements EventSubscriberInterface {
   {
     /** @var UserInterface $user */
     $user = $event->getUser();
+
+    // Load auto-generation settings.
+    $config = $this->configFactory->get('sentinel_key.settings');
+    if (!$config->get('auto_generate_enabled')) {
+      return;
+    }
+
+    // Add user type support. (module: user_bundle).
+    $autoBundles = $config->get('auto_generate_bundles') ?: [];
+    if ($this->entityTypeManager->hasDefinition('user_type') && !$autoBundles) {
+      if (!in_array($user->bundle(), $autoBundles)) {
+        return;
+      }
+    }
 
     $storage = $this->entityTypeManager->getStorage('sentinel_key');
 
@@ -102,12 +113,6 @@ class UserAutoGenerateSubscriber implements EventSubscriberInterface {
     );
 
     if ($hasKey) return;
-
-    // Load auto-generation settings.
-    $config = $this->configFactory->get('sentinel_key.settings');
-    if (!$config->get('auto_generate_enabled')) {
-      return;
-    }
 
     // Get the list of roles eligible for auto-generation.
     $autoRoles = $config->get('auto_generate_roles') ?: [];
@@ -144,6 +149,72 @@ class UserAutoGenerateSubscriber implements EventSubscriberInterface {
       ]);
     }
 
+  }
+
+  /**
+   * Responds to a new user entity being inserted.
+   *
+   * @param EntityCreateEvent $event
+   *   The event triggered on entity insertion.
+   */
+  public function onEntityCreate(EntityCreateEvent $event): void
+  {
+    $user = $event->getEntity();
+    // Only act on user entities.
+    if ($user->getEntityTypeId() !== 'user') {
+      return;
+    }
+
+    // Load auto-generation settings.
+    $config = $this->configFactory->get('sentinel_key.settings');
+    if (!$config->get('auto_generate_enabled')) {
+      return;
+    }
+
+    // Add user type support. (module: user_bundle).
+    $autoBundles = $config->get('auto_generate_bundles') ?: [];
+    if ($this->entityTypeManager->hasDefinition('user_type') && !$autoBundles) {
+      if (!in_array($user->bundle(), $autoBundles)) {
+        return;
+      }
+    }
+
+    $storage = $this->entityTypeManager->getStorage('sentinel_key');
+
+    // Get the list of roles eligible for auto-generation.
+    $autoRoles = $config->get('auto_generate_roles') ?: [];
+    if (empty($autoRoles)) {
+      return;
+    }
+
+    // Check if the new user has any role from the auto-generation list.
+    $user_roles = $user->getRoles();
+    $matched_roles = array_intersect($user_roles, $autoRoles);
+    if (empty($matched_roles)) {
+      return;
+    }
+
+    // Determine the expiration timestamp if provided.
+    $duration = $config->get('auto_generate_duration');
+    $unit = $config->get('auto_generate_duration_unit');
+    $expires = $duration ? strtotime( "+ {$duration} {$unit}") : NULL;
+
+    // Generate an API key for the new user.
+    try {
+      $sentinelKey = $storage->create([
+        'uid' => $user->id(),
+        'expires' => $expires,
+        'status' => 1,
+      ]);
+      $sentinelKey->save();
+      $this->logger->info('Auto-generated API key for user ID @uid.', ['@uid' => $user->id()]);
+    }
+    catch (\Exception $e) {
+      $this->logger->error('Failed to auto-generate API key for user ID @uid: @message', [
+        '@uid' => $user->id(),
+        '@message' => $e->getMessage(),
+      ]);
+    }
   }
 
 }

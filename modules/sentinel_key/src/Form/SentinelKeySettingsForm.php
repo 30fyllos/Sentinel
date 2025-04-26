@@ -30,16 +30,26 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
   protected SentinelKeyManagerInterface $sentinelKeyManager;
 
   /**
+   * The entity type manager.
+   *
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
+   */
+  protected EntityTypeManagerInterface $entityTypeManager;
+
+  /**
    * Constructs a new SentinelKeyEntitiesSettingsForm.
    *
    * @param ConfigFactoryInterface $config_factory
    *   The configuration factory.
    * @param SentinelKeyManagerInterface $sentinelKeyManager
    *   The API key manager service.
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
+   *   The entity type manager.
    */
-  public function __construct(ConfigFactoryInterface $config_factory, TypedConfigManagerInterface $typedConfigManager, SentinelKeyManagerInterface $sentinelKeyManager) {
+  public function __construct(ConfigFactoryInterface $config_factory, TypedConfigManagerInterface $typedConfigManager, SentinelKeyManagerInterface $sentinelKeyManager, EntityTypeManagerInterface $entityTypeManager) {
     parent::__construct($config_factory, $typedConfigManager);
     $this->sentinelKeyManager = $sentinelKeyManager;
+    $this->entityTypeManager = $entityTypeManager;
   }
 
   /**
@@ -49,7 +59,8 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
     return new static(
       $container->get('config.factory'),
       $container->get('config.typed'),
-      $container->get('sentinel_key.manager')
+      $container->get('sentinel_key.manager'),
+      $container->get('entity_type.manager')
     );
   }
 
@@ -108,19 +119,37 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
       '#title' => $this->t('General settings'),
       '#group' => 'tabs',
     ];
-    $form['general']['encryption_notice'] = [
-      '#type' => 'markup',
-      '#markup' => '<div class="messages messages--warning"><strong>' . $this->t('Security Advisory:') . '</strong> ' . $this->t('Please select your preferred encryption key storage method. <strong>Changing this setting after keys have been issued will invalidate all existing keys and require regeneration.</strong> We strongly recommend using the environment variable option (<code>SENTINEL_ENCRYPTION_KEY</code>) for enhanced security, isolation of secrets from codebase, and improved deployment practices.') . '</div>',
-    ];
+//    $form['general']['encryption_notice'] = [
+//      '#type' => 'markup',
+//      '#markup' => '<div class="messages messages--warning"><strong>' . $this->t('Security Advisory:') . '</strong> ' . $this->t('Please select your preferred encryption key storage method. <strong>Changing this setting after keys have been issued will invalidate all existing keys and require regeneration.</strong> We strongly recommend using the environment variable option (<code>SENTINEL_ENCRYPTION_KEY</code>) for enhanced security, isolation of secrets from codebase, and improved deployment practices.') . '</div>',
+//    ];
+
+
     $form['general']['encryption_mode'] = [
       '#type' => 'radios',
       '#title' => $this->t('Encryption Key Storage Mode'),
-      '#description' => $this->t('Choose how encryption keys should be stored. Using an environment variable such as <code>SENTINEL_ENCRYPTION_KEY</code> is strongly recommended for production environments.'),
+      '#description' => $this->t('Choose how encryption keys should be stored. Using an environment variable is strongly recommended for production environments.'),
       '#options' => [
         'config' => $this->t('Auto-generated store in Drupal Configuration'),
         'env' => $this->t('Use Environment Variable (SENTINEL_ENCRYPTION_KEY)'),
       ],
       '#default_value' => $config->get('encryption_mode') ?? 'config',
+    ];
+
+    $form['general']['encryption_notice'] = [
+      '#type' => 'markup',
+      '#markup' => '<div class="messages messages--warning">' .
+        '<strong>' . $this->t('Security Advisory:') . '</strong> ' .
+        $this->t('You are currently using a configuration-stored encryption key.') . '<br>' .
+        $this->t('It is highly recommended to define your encryption key using an environment variable <code>SENTINEL_ENCRYPTION_KEY</code> instead.') . '<br>' .
+        $this->t('Changing the encryption method after API keys have been generated will invalidate all existing keys and force their regeneration.') . '<br>' .
+        $this->t('Ideally, you should configure the encryption method before issuing any API keys to avoid unnecessary key invalidation.') .
+        '</div>',
+      '#states' => [
+        'visible' => [
+          ':input[name="encryption_mode"]' => ['value' => 'config'],
+        ],
+      ],
     ];
 
     $form['security'] = [
@@ -160,8 +189,12 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
       '#title' => $this->t('Rate limiting'),
       '#group' => 'tabs',
     ];
+    $form['rate_limit']['failure_fieldset'] = [
+      '#type' => 'fieldset',
+      '#title' => $this->t('Failure Limit'),
+    ];
     // Maximum failed authentication attempts.
-    $form['rate_limit']['failure_limit'] = [
+    $form['rate_limit']['failure_fieldset']['failure_limit'] = [
       '#type' => 'number',
       '#title' => $this->t('Max Failed Attempts Before Block'),
       '#default_value' => $config->get('failure_limit', 100),
@@ -169,7 +202,7 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
       '#min' => 0,
     ];
     // Timeframe over which failures are counted.
-    $form['rate_limit']['failure_limit_time'] = [
+    $form['rate_limit']['failure_fieldset']['failure_limit_time'] = [
       '#type' => 'select',
       '#title' => $this->t('Failure Limit Time Per'),
       '#options' => $timeframe_options,
@@ -181,8 +214,12 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
         ],
       ],
     ];
+    $form['rate_limit']['rate_fieldset'] = [
+      '#type' => 'fieldset',
+      '#title' => $this->t('Requests Limit'),
+    ];
     // Maximum allowed API requests.
-    $form['rate_limit']['max_rate_limit'] = [
+    $form['rate_limit']['rate_fieldset']['max_rate_limit'] = [
       '#type' => 'number',
       '#title' => $this->t('Max Requests Allowed'),
       '#default_value' => $config->get('max_rate_limit', 100),
@@ -190,7 +227,7 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
       '#min' => 0,
     ];
     // Timeframe for rate limiting.
-    $form['rate_limit']['max_rate_limit_time'] = [
+    $form['rate_limit']['rate_fieldset']['max_rate_limit_time'] = [
       '#type' => 'select',
       '#title' => $this->t('Rate Limit Time Period'),
       '#options' => $timeframe_options,
@@ -232,6 +269,27 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
 
     // If auto-generation is enabled, display additional settings.
     if ($auto_generate) {
+
+      // Add user type support. (module: user_bundle)
+      $userBundles = [];
+      $activeUserBundles = $this->entityTypeManager->hasDefinition('user_type');
+      if($activeUserBundles) {
+        $userTypes = $this->entityTypeManager->getStorage('user_type')->loadMultiple();
+
+        foreach ($userTypes as $userType) {
+          $userBundles[$userType->id()] = $userType->label();
+        }
+      }
+
+      $form['auto_generate_tab']['auto_generate_settings']['auto_generate_bundles'] = [
+        '#type' => 'checkboxes',
+        '#title' => $this->t('Select Bundles for Auto-Generation'),
+        '#options' => $userBundles,
+        '#default_value' => $config->get('auto_generate_bundles') ?: [],
+        '#description' => $this->t('Limit to certain user bundles. Empty stands for any.'),
+        '#access' => $activeUserBundles
+      ];
+
       // Load all roles (except anonymous).
       $roles = Role::loadMultiple();
       $role_options = [];
@@ -248,12 +306,7 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
         '#title' => $this->t('Select Roles for Auto-Generation'),
         '#options' => $role_options,
         '#default_value' => $config->get('auto_generate_roles') ?: [],
-        '#ajax' => [
-          'callback' => '::ajaxSaveCallback',
-          'wrapper'  => 'auto-generate-settings-wrapper',
-          'event'    => 'click',
-        ],
-        '#description' => $this->t('Users registering with these roles will automatically receive an API key.'),
+        '#description' => $this->t('Users with these roles will automatically receive an API key.'),
       ];
 
       $form['auto_generate_tab']['auto_generate_settings']['duration_wrapper'] = [
@@ -269,11 +322,6 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
         '#min' => 0,
         '#max' => 100,
         '#default_value' => $config->get('auto_generate_duration') ?: 0,
-        '#ajax' => [
-          'callback' => '::ajaxSaveCallback',
-          'wrapper'  => 'auto-generate-settings-wrapper',
-          'event'    => 'change',
-        ],
       ];
 
       $form['auto_generate_tab']['auto_generate_settings']['duration_wrapper']['auto_generate_duration_unit'] = [
@@ -285,11 +333,6 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
           'years' => $this->t('Year(s)'),
         ],
         '#default_value' => $config->get('auto_generate_duration_unit') ?: 'years',
-        '#ajax' => [
-          'callback' => '::ajaxSaveCallback',
-          'wrapper'  => 'auto-generate-settings-wrapper',
-          'event'    => 'change',
-        ],
         '#states' => [
           // Show only if failure_limit is not 0.
           'visible' => [
@@ -319,8 +362,20 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
    */
   public function ajaxSaveCallback(array &$form, FormStateInterface $form_state): array
   {
-    // Save the configuration using our submitForm() method.
-    $this->submitForm($form, $form_state);
+    $auto_generate = (bool) $form_state->getValue('auto_generate');
+
+    $config = $this->configFactory()->getEditable('sentinel_key.settings');
+    $config->set('auto_generate_enabled', $auto_generate);
+
+    if(!$auto_generate) {
+      // Clear the settings if auto-generation is disabled.
+      $config->set('auto_generate_bundles', []);
+      $config->set('auto_generate_roles', []);
+      $config->set('auto_generate_duration', 0);
+      $config->set('auto_generate_duration_unit', 'years');
+    }
+    $config->save();
+
     // Return the container that holds our auto-generation settings.
     return $form['auto_generate_tab']['auto_generate_settings'];
   }
@@ -354,19 +409,12 @@ final class SentinelKeySettingsForm extends ConfigFormBase {
       ->set('max_rate_limit', $form_state->getValue('max_rate_limit'))
       ->set('max_rate_limit_time', $form_state->getValue('max_rate_limit_time'));
 
-    // Save the auto-generation enabled flag.
-    $config->set('auto_generate_enabled', $form_state->getValue('auto_generate'));
     // Save roles and expiration only if auto-generation is enabled.
     if ($form_state->getValue('auto_generate')) {
+      $config->set('auto_generate_bundles', $form_state->getValue('auto_generate_bundles'));
       $config->set('auto_generate_roles', $form_state->getValue('auto_generate_roles'));
       $config->set('auto_generate_duration', $form_state->getValue('auto_generate_duration'));
       $config->set('auto_generate_duration_unit', $form_state->getValue('auto_generate_duration_unit'));
-    }
-    else {
-      // Clear the settings if auto-generation is disabled.
-      $config->set('auto_generate_roles', []);
-      $config->set('auto_generate_duration', 0);
-      $config->set('auto_generate_duration_unit', 'years');
     }
 
     $config->save();
