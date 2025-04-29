@@ -14,6 +14,8 @@ use Random\RandomException;
  */
 interface SentinelKeyManagerInterface {
 
+
+
   /**
    * Load an environment variable from .env file.
    *
@@ -48,21 +50,6 @@ interface SentinelKeyManagerInterface {
   public function decryptValue(string $encryptedValue): false|string;
 
   /**
-   * Generates a new API key for a user.
-   *
-   * @param AccountInterface $account
-   *   The user account.
-   * @param int|null $expires
-   *   (Optional) Expiration timestamp.
-   *
-   * @return void
-   *   The generated API key.
-   *
-   * @throws RandomException
-   */
-  public function generateApiKey(AccountInterface $account, ?int $expires = NULL): void;
-
-  /**
    * Forces regeneration of all API keys.
    *
    * @return int
@@ -72,96 +59,14 @@ interface SentinelKeyManagerInterface {
   public function forceRegenerateAllKeys(): int;
 
   /**
-   * Revokes a user's API key.
-   *
-   * @param \Drupal\Core\Session\AccountInterface $account
-   *   The user account.
-   *
-   * @return void
-   */
-  public function revokeApiKey(AccountInterface $account): void;
-
-  /**
-   * Regenerates an API key for a user.
-   *
-   * @param AccountInterface $account
-   *   The user account.
-   *
-   * @return void
-   *   The new API key.
-   *
-   * @throws RandomException
-   */
-  public function regenerateApiKey(AccountInterface $account): void;
-
-  /**
    * Checks if a user has an API key.
    *
    * @param AccountInterface|string $account
    *   The user account or user ID.
    *
-   * @return int|null
-   *   The api key ID or null.
-   */
-  public function hasApiKey(AccountInterface|string $account): int|null;
-
-  /**
-   * Checks if a user matches the API key.
-   *
-   * @param AccountInterface|string $account
-   *   The user account or user ID.
-   * @param $keyId
-   *   The key ID.
-   *
-   * @return int|null
-   *   The user ID or null.
-   */
-  public function matchApiKey(AccountInterface|string $account, $keyId): int|null;
-
-  /**
-   * Fetches the current block status of an API key.
-   *
-   * @param int $key_id
-   *   The API key ID.
-   *
-   * @return int|null
-   *   Returns 1 if blocked, 0 if not blocked, or NULL if the key does not exist.
-   */
-  public function getApiKeyStatus(int $key_id): ?int;
-
-  /**
-   * Toggles the block status of an API key.
-   *
-   * @param SentinelKey|int $key
-   *   The API key ID.
-   *
    * @return bool
-   *   TRUE if the key was successfully updated, FALSE if not found.
    */
-  public function toggleApiKeyStatus(SentinelKey|int $key): bool;
-
-  /**
-   * Gets the API key expiration timestamp for a user.
-   *
-   * @param AccountInterface|string $account
-   *   The user account.
-   *
-   * @return int|null
-   *   The expiration timestamp or NULL if not set.
-   */
-  public function apiKeyExpiration(AccountInterface|string $account): ?int;
-
-  /**
-   * Logs API key usage.
-   *
-   * @param int $keyId
-   *   The API key ID.
-   * @param bool $status
-   *   The status (TRUE for success, FALSE for failure).
-   *
-   * @return void
-   */
-  public function logKeyUsage(int $keyId, bool $status = FALSE): void;
+  public function hasApiKey(AccountInterface|string $account): bool;
 
   /**
    * Checks if the API key has exceeded the rate limit.
@@ -186,6 +91,16 @@ interface SentinelKeyManagerInterface {
   public function blockFailedAttempt(int $keyId): bool;
 
   /**
+   * Reset failure window on success.
+   *
+   * @param int $keyId
+   *   The API key ID.
+   *
+   * @return void
+   */
+  public function resetFailureWindow(int $keyId): void;
+
+  /**
    * Generates API keys for all users without one, optionally filtered by roles.
    *
    * @param array $roles
@@ -198,18 +113,5 @@ interface SentinelKeyManagerInterface {
    *
    * @throws RandomException
    */
-  public function generateApiKeysForAllUsers(array $roles = [], ?int $expires = NULL): int;
-
-  /**
-   * Gets the number of times the API key has been used within a specified period.
-   *
-   * @param int $keyId
-   *   The API key ID.
-   * @param string $timeCondition
-   *   The time condition (e.g. '-1 hour').
-   *
-   * @return mixed
-   *   The number of times used.
-   */
-  public function apiKeyUsageLast(int $keyId, string $timeCondition = '-1 hour'): mixed;
+//  public function generateApiKeysForAllUsers(array $roles = [], ?int $expires = NULL): int;
 }

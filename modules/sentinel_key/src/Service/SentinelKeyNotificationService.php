@@ -117,7 +117,7 @@ class SentinelKeyNotificationService implements SentinelKeyNotificationServiceIn
   public function notifyNewKey(AccountInterface $account): void {
     $data = [
       // TODO change link.
-      'link' => Url::fromRoute('api_sentinel.view_api_key', ['uid' => $account->id()], ['absolute' => TRUE])->toString(),
+      'link' => Url::fromRoute('sentinel_key.view_api_key', ['uid' => $account->id()], ['absolute' => TRUE])->toString(),
     ];
     $this->queueNotification('new_key', $account, $data);
   }

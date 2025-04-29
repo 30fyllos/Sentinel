@@ -2,6 +2,7 @@
 
 namespace Drupal\sentinel_key\Service;
 
+use Drupal\Core\Entity\EntityStorageException;
 use Drupal\sentinel_key\Entity\SentinelKey;
 use Drupal\sentinel_key\Enum\Timeframe;
 use Drupal\Core\Database\Connection;
@@ -11,6 +12,7 @@ use Drupal\Core\Entity\EntityTypeManager;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\Core\TempStore\PrivateTempStoreFactory;
+use Drupal\sentinel_key\SentinelKeyInterface;
 use Drupal\user\Entity\User;
 use Exception;
 use Psr\Log\LoggerInterface;
@@ -130,16 +132,30 @@ class SentinelKeyManager implements SentinelKeyManagerInterface {
   /**
    * Logs API key changes.
    *
-   * @param int $uid
-   *   The user ID.
    * @param string $message
    *   The log message.
+   * @param string|null $type
+   *   The log type.
+   *
+   * @return void
    */
-  protected function logKeyChange(int $uid, string $message): void {
-    $this->logger->info($message, [
-      'uid' => $uid,
+  protected function logKey(string $message, string $type = null): void {
+    switch ($type) {
+    case 'warning':
+      $this->logger->warning($message, [
       'changed_by' => $this->currentUser->id(),
-    ]);
+      ]);
+      break;
+    case 'notice':
+      $this->logger->notice($message, [
+        'changed_by' => $this->currentUser->id(),
+      ]);
+      break;
+    default:
+      $this->logger->info($message, [
+        'changed_by' => $this->currentUser->id(),
+      ]);
+    }
   }
 
   /**
@@ -193,60 +209,21 @@ class SentinelKeyManager implements SentinelKeyManagerInterface {
 
   /**
    * {@inheritdoc}
-   * @throws Exception
-   */
-  public function generateApiKey(AccountInterface $account, ?int $expires = NULL): void
-  {
-    try {
-      $apiKey = base64_encode(random_bytes(32));
-    }
-    catch (Exception $e) {
-      $this->logger->error('Error generating API key: @message', ['@message' => $e->getMessage()]);
-      throw $e;
-    }
-
-    // Load existing API key entity for this user, if any.
-    $storage = $this->entityTypeManager->getStorage('sentinel_key');
-    $existing = $storage->loadByProperties(['uid' => $account->id()]);
-    if (!empty($existing)) {
-      $apiKeyEntity = reset($existing);
-    }
-    else {
-      $apiKeyEntity = $storage->create([]);
-    }
-
-    $apiKeyEntity->set('uid', $account->id());
-    $apiKeyEntity->set('api_key', hash('sha256', $apiKey));
-    $apiKeyEntity->set('data', $this->encryptValue($apiKey));
-    $apiKeyEntity->set('created', time());
-    if ($expires !== NULL) {
-      $apiKeyEntity->set('expires', $expires);
-    }
-    $apiKeyEntity->save();
-
-    $this->logKeyChange($account->id(), 'Generated a new API key.');
-    $this->notificationService->notifyNewKey($account);
-  }
-
-  /**
-   * {@inheritdoc}
    */
   public function forceRegenerateAllKeys(): int
   {
     $storage = $this->entityTypeManager->getStorage('sentinel_key');
     $storedKeys = $storage->loadMultiple();
-    $this->logger->warning('All API keys have been regenerated due to encryption key change.', [
-      'changed_by' => $this->currentUser->id(),
-    ]);
+
     $count = 0;
+    /** @var SentinelKeyInterface $apiKeyEntity */
     foreach ($storedKeys as $apiKeyEntity) {
-      $uid = $apiKeyEntity->get('uid')->target_id;
-      $expires = $apiKeyEntity->get('expires')->value;
-      $user = User::load($uid);
-      if ($user) {
-        $this->generateApiKey($user, $expires);
-        $count++;
-      }
+      $apiKeyEntity->genApiKey();
+      $apiKeyEntity->save();
+      $count++;
+    }
+    if($count) {
+      $this->logKey("Total {$count} API keys have been regenerated due to encryption key change.", "warning");
     }
     return $count;
   }
@@ -254,122 +231,14 @@ class SentinelKeyManager implements SentinelKeyManagerInterface {
   /**
    * {@inheritdoc}
    */
-  public function revokeApiKey(AccountInterface $account): void {
-    $storage = $this->entityTypeManager->getStorage('sentinel_key');
-    $existing = $storage->loadByProperties(['uid' => $account->id()]);
-    if (!empty($existing)) {
-      foreach ($existing as $apiKeyEntity) {
-        $apiKeyEntity->delete();
-      }
-    }
-    $this->logKeyChange($account->id(), 'Revoked API key.');
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function regenerateApiKey(AccountInterface $account): void {
-    $expires = $this->apiKeyExpiration($account);
-    // Revoke the old key.
-    $this->revokeApiKey($account);
-    // Generate a new key.
-    $this->generateApiKey($account, $expires);
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function hasApiKey(AccountInterface|string $account): int|null {
+  public function hasApiKey(AccountInterface|string $account): bool {
     if ($account instanceof AccountInterface) {
       $account = $account->id();
     }
     $storage = $this->entityTypeManager->getStorage('sentinel_key');
     $existing = $storage->loadByProperties(['uid' => $account]);
-    if (!empty($existing)) {
-      $apiKeyEntity = reset($existing);
-      return (int) $apiKeyEntity->id();
-    }
-    return NULL;
-  }
 
-  /**
-   * {@inheritdoc}
-   */
-  public function matchApiKey(AccountInterface|string $account, $keyId): ?int
-  {
-    if ($account instanceof AccountInterface) {
-      $account = $account->id();
-    }
-    $storage = $this->entityTypeManager->getStorage('sentinel_key');
-    $apiKeyEntity = $storage->load($keyId);
-    if ($apiKeyEntity && $apiKeyEntity->get('uid')->target_id == $account) {
-      return (int) $apiKeyEntity->get('uid')->target_id;
-    }
-    return NULL;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function getApiKeyStatus(int $key_id): ?int {
-    $storage = $this->entityTypeManager->getStorage('sentinel_key');
-    $apiKeyEntity = $storage->load($key_id);
-    if ($apiKeyEntity) {
-      return (int) $apiKeyEntity->get('blocked')->value;
-    }
-    return NULL;
-  }
-
-  /**
-   * {@inheritdoc}
-   * TODO: delete later?
-   */
-  public function toggleApiKeyStatus(SentinelKey|int $key): bool {
-    if (!$key) return FALSE;
-
-    if (!$key instanceof SentinelKey) {
-      $storage = $this->entityTypeManager->getStorage('sentinel_key');
-      $key = $storage->load($key);
-    }
-
-    if ($key) {
-      $key->set('blocked', !$key->isBlocked());
-      $key->save();
-      $message = $key->isBlocked() ? 'API key has been blocked.' : 'API key has been unblocked.';
-      $this->logger->notice($message, ['key_id' => $key->id(), 'changed_by' => $this->currentUser->id()]);
-      return TRUE;
-    }
-    return FALSE;
-  }
-
-
-  /**
-   * {@inheritdoc}
-   */
-  public function apiKeyExpiration(AccountInterface|string $account): ?int {
-    if ($account instanceof AccountInterface) {
-      $account = $account->id();
-    }
-    $storage = $this->entityTypeManager->getStorage('sentinel_key');
-    $existing = $storage->loadByProperties(['uid' => $account]);
-    if (!empty($existing)) {
-      $apiKeyEntity = reset($existing);
-      return $apiKeyEntity->get('expires')->value;
-    }
-    return NULL;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function logKeyUsage(int $keyId, bool $status = FALSE): void {
-    $usageStorage = $this->entityTypeManager->getStorage('api_key_usage');
-    $usageEntity = $usageStorage->create([
-      'api_key' => $keyId,
-      'used_at' => time(),
-      'status' => $status ? 1 : 0,
-    ]);
-    $usageEntity->save();
+    return !empty($existing);
   }
 
   /**
@@ -379,21 +248,21 @@ class SentinelKeyManager implements SentinelKeyManagerInterface {
     $this->initSettings();
     $maxRateLimit = $this->settings['max_rate_limit'] ?? 0;
     if ($maxRateLimit > 0) {
-      $timeThreshold = Timeframe::fromString($this->settings['max_rate_limit_time'] ?? '1h')?->toTimestamp();
-      $cache_id = "sentinel_key:usage:{$keyId}";
-      if ($cache_item = $this->cache->get($cache_id)) {
-        $requestCount = $cache_item->data;
-      }
-      else {
-        $query = $this->entityTypeManager->getStorage('api_key_usage')->getQuery();
-        $query->condition('api_key', $keyId);
-        $query->condition('used_at', $timeThreshold, '>');
-        $query->accessCheck();
-        $requestCount = (int) $query->count()->execute();
-        $this->cache->set($cache_id, $requestCount, time() + 60);
-      }
-      if ($requestCount >= $maxRateLimit) {
-        $this->logger->warning('API key {id} exceeded rate limit.', ['id' => $keyId]);
+      $timestamp = \Drupal::time()->getCurrentTime();
+      $cid = "sentinel_key:usage:$keyId";
+      $cache = $this->cache->get($cid);
+      $usages = $cache ? $cache->data : [];
+
+      $usages[] = $timestamp;
+      $usages = array_filter($usages, fn($ts) => $timestamp - $ts <= 3600);
+
+      $this->cache->set($cid, $usages, $timestamp + 3600);
+
+      $windowStart = Timeframe::fromString($this->settings['max_rate_limit_time'] ?? '1h')?->toTimestamp();
+      $recentUsage = array_filter($usages, fn($ts) => $ts >= $windowStart);
+
+      if (count($recentUsage) >= $maxRateLimit) {
+        $this->logKey("API key {$keyId} exceeded rate limit.", 'warning');
         return TRUE;
       }
     }
@@ -407,23 +276,28 @@ class SentinelKeyManager implements SentinelKeyManagerInterface {
     $this->initSettings();
     $failureLimit = $this->settings['failure_limit'] ?? 0;
     if ($failureLimit > 0) {
-      $cache_id = "sentinel_key:failures:{$keyId}";
-      $failureCount = ($this->cache->get($cache_id)) ? $this->cache->get($cache_id)->data : 0;
-      $failureCount++;
-      $failureTtl = strtotime('+1 hour') - time();
-      $this->cache->set($cache_id, $failureCount, time() + $failureTtl);
-      if ($failureCount >= $failureLimit) {
+      $timestamp = \Drupal::time()->getCurrentTime();
+      $cid = "sentinel_key:failures:$keyId";
+      $cache = $this->cache->get($cid);
+      $failures = $cache ? $cache->data : [];
+
+      $failures[] = $timestamp;
+
+      // Keep only the last hour of failures
+      $failures = array_filter($failures, fn($ts) => $timestamp - $ts <= 3600);
+
+      $this->cache->set($cid, $failures, $timestamp + 3600);
+
+      if (count($failures) >= $failureLimit) {
         $storage = $this->entityTypeManager->getStorage('sentinel_key');
         $apiKeyEntity = $storage->load($keyId);
         if ($apiKeyEntity) {
-          $apiKeyEntity->set('blocked', 1);
+          $apiKeyEntity->set('blocked', 0);
           $apiKeyEntity->save();
         }
-        $this->logger->notice('API key {id} has been blocked after {failures} failed attempts.', [
-          'id' => $keyId,
-          'failures' => $failureCount,
-        ]);
-        $this->cache->delete($cache_id);
+        $countFailures = count($failures);
+        $this->logKey("API key {$keyId} has been blocked after {$countFailures} failed attempts.", 'notice');
+        $this->cache->delete($cid);
         return TRUE;
       }
     }
@@ -433,44 +307,40 @@ class SentinelKeyManager implements SentinelKeyManagerInterface {
   /**
    * {@inheritdoc}
    */
-  public function generateApiKeysForAllUsers(array $roles = [], ?int $expires = NULL): int
-  {
-    if (empty($roles)) {
-      return 0;
-    }
-    // Using the database connection to query user data.
-    $query = $this->database->select('users_field_data', 'u')
-      ->fields('u', ['uid'])
-      ->condition('u.uid', 1, '>') // Exclude anonymous user.
-      ->condition('u.status', 1);   // Only active users.
-    // If not all authenticated users, join roles and filter.
-    if (!in_array('authenticated', $roles)) {
-      $query->leftJoin('user__roles', 'ur', 'u.uid = ur.entity_id');
-      $query->condition('ur.roles_target_id', $roles, 'IN');
-    }
-    $users = $query->execute()->fetchCol();
-    $count = 0;
-    foreach ($users as $uid) {
-      if (!$this->hasApiKey($uid)) {
-        $user = User::load($uid);
-        if ($user && $user->isActive()) {
-          $this->generateApiKey($user, $expires);
-          $count++;
-        }
-      }
-    }
-    return $count;
+  public function resetFailureWindow(int $keyId): void {
+    $cid = "sentinel_key:failures:$keyId";
+    $this->cache->delete($cid);
   }
 
   /**
    * {@inheritdoc}
    */
-  public function apiKeyUsageLast(int $keyId, string $timeCondition = '-1 hour'): mixed
-  {
-    $query = $this->entityTypeManager->getStorage('api_key_usage')->getQuery();
-    $query->condition('api_key', $keyId);
-    $query->condition('used_at', strtotime($timeCondition), '>');
-    $query->accessCheck();
-    return (int) $query->count()->execute();
-  }
+//  public function generateApiKeysForAllUsers(array $roles = [], ?int $expires = NULL): int
+//  {
+//    if (empty($roles)) {
+//      return 0;
+//    }
+//    // Using the database connection to query user data.
+//    $query = $this->database->select('users_field_data', 'u')
+//      ->fields('u', ['uid'])
+//      ->condition('u.uid', 1, '>') // Exclude anonymous user.
+//      ->condition('u.status', 1);   // Only active users.
+//    // If not all authenticated users, join roles and filter.
+//    if (!in_array('authenticated', $roles)) {
+//      $query->leftJoin('user__roles', 'ur', 'u.uid = ur.entity_id');
+//      $query->condition('ur.roles_target_id', $roles, 'IN');
+//    }
+//    $users = $query->execute()->fetchCol();
+//    $count = 0;
+//    foreach ($users as $uid) {
+//      if (!$this->hasApiKey($uid)) {
+//        $user = User::load($uid);
+//        if ($user && $user->isActive()) {
+//          $this->generateApiKey($user, $expires);
+//          $count++;
+//        }
+//      }
+//    }
+//    return $count;
+//  }
 }

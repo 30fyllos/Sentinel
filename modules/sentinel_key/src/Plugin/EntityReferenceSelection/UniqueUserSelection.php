@@ -27,28 +27,40 @@ final class UniqueUserSelection extends UserSelection {
   protected function buildEntityQuery($match = NULL, $match_operator = 'CONTAINS'): QueryInterface {
     $query = parent::buildEntityQuery($match, $match_operator);
 
+    $route_match = \Drupal::service('current_route_match');
+
     /** @var \Symfony\Component\HttpFoundation\Request $request */
     $request = \Drupal::service('request_stack')->getCurrentRequest();
 
-    $uids_to_exclude = \Drupal::database()->select('sentinel_key', 'sk')
+    $uidsToExclude = \Drupal::database()->select('sentinel_key', 'sk')
       ->fields('sk', ['uid'])
       ->distinct()
       ->execute()
       ->fetchCol();
 
-    // Exclude owner in editing mode.
-    if ($request->query->get('entity_type') === 'sentinel_key') {
+    $sentinelKey = $route_match->getParameter('sentinel_key');
+    if (!$sentinelKey && $request->query->get('entity_type') === 'sentinel_key') {
       $sentinelKey = \Drupal::entityTypeManager()
         ->getStorage('sentinel_key')
         ->load($request->query->get('entity_id'));
-
-      if (!$sentinelKey->isNew()) {
-        $owner_id = $sentinelKey->getOwner()->id();
-        $uids_to_exclude = array_diff($uids_to_exclude, [$owner_id]);
-      }
     }
 
-    $query->condition('uid', $uids_to_exclude, 'NOT IN');
+    if (!$sentinelKey) {
+      return $query;
+    }
+
+    // Exclude owner in editing mode.
+    if (!$sentinelKey->isNew()) {
+      $owner_id = $sentinelKey->getOwnerId();
+      $uidsToExclude = array_diff($uidsToExclude, [$owner_id]);
+    }
+
+    // Always exclude Admin.
+    if (!in_array('1', $uidsToExclude)) {
+      $uidsToExclude[] = '1';
+    }
+
+    $query->condition('uid', $uidsToExclude, 'NOT IN');
 
     return $query;
   }

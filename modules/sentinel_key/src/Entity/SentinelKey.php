@@ -6,13 +6,16 @@ namespace Drupal\sentinel_key\Entity;
 
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityChangedTrait;
+use Drupal\Core\Entity\EntityConstraintViolationListInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Field\BaseFieldDefinition;
+use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\sentinel_key\Exception\SentinelKeyException;
 use Drupal\sentinel_key\SentinelKeyInterface;
 use Drupal\user\EntityOwnerTrait;
 use Random\RandomException;
+use Symfony\Component\Validator\ConstraintViolation;
 
 /**
  * Defines the sentinel key entity class.
@@ -79,30 +82,20 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
     return \Drupal::service('sentinel_key.manager');
   }
 
-  /**
-   * {@inheritdoc}
-   */
-  public function preSave(EntityStorageInterface $storage): void {
-    parent::preSave($storage);
-    if (!$this->getOwnerId()) {
-      // If no owner has been set explicitly, make the anonymous user the owner.
-      $this->setOwnerId(0);
-    }
-    if ($this->isNew()) {
-      $apiKey = base64_encode(random_bytes(32));
-      $this->set('api_key', hash('sha256', $apiKey));
-      $this->set('data', $this->apiKeyManager()->encryptValue($apiKey));
-    }
+  public static function getRandomDefaultLabel(SentinelKey $key, BaseFieldDefinition $fieldDefinition): array {
+    return ['Key-' . strtoupper(substr(base64_encode(random_bytes(6)), 0, 6))];
+  }
 
+  public function validate(): EntityConstraintViolationListInterface {
+    $violations = parent::validate();
 
-    // Enforce unique owner.
+    // Check for unique user ownership.
     $query = \Drupal::entityTypeManager()
       ->getStorage('sentinel_key')
       ->getQuery()
       ->accessCheck(FALSE)
       ->condition('uid', $this->getOwnerId());
 
-    // Exclude self if updating.
     if (!$this->isNew()) {
       $query->condition('id', $this->id(), '<>');
     }
@@ -110,10 +103,48 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
     $existing = $query->execute();
 
     if (!empty($existing)) {
-      \Drupal::messenger()->addError(t('This user already owns an API key.'));
-      throw new SentinelKeyException('This user already owns an API key.');
+      $violations->add(new ConstraintViolation(
+        'This user already owns an API key.',
+        '',
+        [],
+        '',
+        'uid',
+        $this->getOwnerId()
+      ));
     }
 
+    return $violations;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function preSave(EntityStorageInterface $storage): void {
+    parent::preSave($storage);
+
+    if ($this->isNew()) {
+      $apiKey = base64_encode(random_bytes(32));
+      $this->set('api_key', hash('sha256', $apiKey));
+      $this->set('data', $this->apiKeyManager()->encryptValue($apiKey));
+    }
+
+//    // Enforce unique owner.
+//    $query = \Drupal::entityTypeManager()
+//      ->getStorage('sentinel_key')
+//      ->getQuery()
+//      ->accessCheck(FALSE)
+//      ->condition('uid', $this->getOwnerId());
+//
+//    // Exclude self if updating.
+//    if (!$this->isNew()) {
+//      $query->condition('id', $this->id(), '<>');
+//    }
+//
+//    $existing = $query->execute();
+//
+//    if (!empty($existing)) {
+//      throw new SentinelKeyException('This user already owns an API key.');
+//    }
   }
 
   /**
@@ -126,6 +157,7 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
     $fields['label'] = BaseFieldDefinition::create('string')
       ->setLabel(t('Label'))
       ->setRequired(TRUE)
+      ->setDefaultValueCallback(self::class . '::getRandomDefaultLabel')
       ->setSetting('max_length', 255)
       ->setDisplayOptions('form', [
         'type' => 'string_textfield',
@@ -156,9 +188,7 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
         'label' => 'above',
         'weight' => 0,
         'settings' => [
-          'format' => 'custom',
-          'format_custom_false' => 'Enabled',
-          'format_custom_true' => 'Blocked',
+          'format' => 'enabled-disabled',
         ],
       ])
       ->setDisplayConfigurable('view', TRUE);
@@ -245,32 +275,36 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
       ]);
 
     // Boolean field to mark if the key is blocked.
-//    $fields['blocked'] = BaseFieldDefinition::create('boolean')
-//      ->setLabel(t('Blocked'))
-//      ->setDescription(t('Indicates whether the API key is blocked.'))
-//      ->setDefaultValue(FALSE);
+    $fields['blocked'] = BaseFieldDefinition::create('boolean')
+      ->setLabel(t('Blocked'))
+      ->setDescription(t('Indicates whether the API key is blocked.'))
+      ->setDefaultValue(FALSE)
+      ->setDisplayOptions('view', [
+        'type' => 'boolean',
+        'label' => 'above',
+        'weight' => 0,
+        'settings' => [
+          'format' => 'custom',
+          'format_custom_false' => 'Unblocked',
+          'format_custom_true' => 'Blocked',
+        ],
+      ])
+      ->setDisplayConfigurable('view', TRUE);
 
     // Expiration timestamp (optional).
-    $fields['expires'] = BaseFieldDefinition::create('datetime')
+    $fields['expires'] = BaseFieldDefinition::create('expiration_timestamp')
       ->setLabel(t('Expires'))
       ->setDescription(t('The expiration timestamp for the API key.'))
-      ->setRequired(FALSE)
-      ->setTranslatable(FALSE)
-      ->setSetting('datetime_type', 'date')
       ->setDisplayOptions('view', [
         'label' => 'above',
-        'type' => 'datetime_custom',
-        'settings' => [
-          'timezone_override' => '',
-          'date_format' => 'd/m/Y'
-        ],
+        'type' => 'expiration_timestamp_default',
+        'weight' => 20,
+      ])
+      ->setDisplayOptions('form', [
+        'type' => 'expiration_timestamp_default',
         'weight' => 20,
       ])
       ->setDisplayConfigurable('form', TRUE)
-      ->setDisplayOptions('form', [
-        'type' => 'datetime_default',
-        'weight' => 20,
-      ])
       ->setDisplayConfigurable('view', TRUE);
 
     $fields['created'] = BaseFieldDefinition::create('created')
@@ -326,10 +360,17 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
   /**
    * {@inheritdoc}
    */
+  public function isEnabled(): bool
+  {
+    return (bool) $this->get('status')->value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function isBlocked(): bool
   {
-    $status = (bool) $this->get('status')->value;
-    return !$status;
+    return (bool) $this->get('blocked')->value;
   }
 
   /**
@@ -337,9 +378,17 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
    */
   public function toggleBlock(): static
   {
-    $status = (bool) $this->get('status')->value;
-    $this->set('status', !$status);
+    $status = (bool) $this->get('blocked')->value;
+    $this->set('blocked', !$status);
     return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getExpirationTimestamp(): int
+  {
+    return $this->get('expires')->value;
   }
 
   /**
@@ -347,6 +396,6 @@ final class SentinelKey extends ContentEntityBase implements SentinelKeyInterfac
    */
   public function isExpired(): bool
   {
-    return time() > $this->get('expires')->value;
+    return \Drupal::time()->getCurrentTime() > $this->getExpirationTimestamp();
   }
 }
